@@ -11,7 +11,7 @@
 #define totalQueries 10000
 double travellingTimeMatrix[V][V];
 
-
+//test
 enum Malls {//40 malls
 	BTS, BB_Plaza, F88, ImbiPlaza, Lot10, MSPL, PlazaLowYat, PavKL, SHGallery, SungeiWangPlaza,
 	AvenueK, Intermark, Suria, LINC, Weld, GESC, PertamaCmplx, Quill, Sogo,SunwayPutra,CapSquare,
