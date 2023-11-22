@@ -1,26 +1,47 @@
 #include "FreeRTOS.h"
 #include "task.h"
+#include "task.h"
 #include "timers.h"
 #include<stdio.h>
 #include <float.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include "queue.h"
 
 #include "supporting_functions.h"
 #define V 40 //number of malls(nodes)
 #define totalQueries 10000
 double travellingTimeMatrix[V][V];
+QueueHandle_t userQueue;
+QueueHandle_t responseQueue;
 
-//test
-enum Malls {//40 malls
-	BTS, BB_Plaza, F88, ImbiPlaza, Lot10, MSPL, PlazaLowYat, PavKL, SHGallery, SungeiWangPlaza,
-	AvenueK, Intermark, Suria, LINC, Weld, GESC, PertamaCmplx, Quill, Sogo,SunwayPutra,CapSquare,
-	PuduPlza, KenaangaWC, PlazaSP, BSC, BVillage, PavBJ, NUSent, Shamelin,ATMSC,IKEAChe,
-	MyTOWN, SunwayVM, VivaH, DCM, GD, HSC, PSG,PlazaOUG, PearlPnt
+
+
+typedef struct {
+	int userID;
+	int speed;
+	int src;
+	int destination;
+
+}User;
+
+typedef struct {
+	int src;
+	int destination;
+	int shortest_travelling_time;
+	int shortest_distance;
+	TickType_t elapsedTime;
+}Response;
+
+char* Malls[V] = {//40 malls
+	"BTS", "BB_Plaza", "F88", "ImbiPlaza", "Lot10", "MSPL", "PlazaLowYat", "PavKL", "SHGallery", "SungeiWangPlaza",
+	"AvenueK", "Intermark", "Suria", "LINC", "Weld", "GESC", "PertamaCmplx", "Quill", "Sogo", "SunwayPutra", "CapSquare",
+	"PuduPlza", "KenaangaWC", "PlazaSP", "BSC", "Bangsar Village", "PavBJ", "NUSent", "Shamelin", "ATMSC", "IKEAChe",
+	"MyTOWN", "SunwayVM", "VivaH", "DCM", "GD", "HSC", "PSG", "PlazaOUG", "PearlPnt"
 
 
 };
-
+// minDistance for distanceMatrix
 int minDistance(double dist[], bool sptSet[]) {
 	double min = DBL_MAX;
 	int min_index;
@@ -34,16 +55,41 @@ int minDistance(double dist[], bool sptSet[]) {
 
 	return min_index;
 }
+//minDistance for timeMatrix
+int minDistanceTime(int dist[], bool sptSet[]) {
+	int min = INT_MAX;
+	int min_index;
+
+	for (int v = 0; v < V; v++) {
+		if (!sptSet[v] && dist[v] <= min) {
+			min = dist[v];
+			min_index = v;
+		}
+	}
+
+	return min_index;
+}
+
+//function to print shortest travelling time time
+void printTime(int dist[], int target) {
+	int hours, minutes, seconds;
+	int shortestTime = dist[target]; // Assuming the destination is the last vertex
+
+	hours = shortestTime / 3600;
+	minutes = (shortestTime % 3600) / 60;
+	seconds = shortestTime % 60;
+
+	printf("%02d:%02d:%02d\n", hours, minutes, seconds);
+}
 
 
 // Function to print the path from source to target
 void printPath(int parent[], int target) {
 	if (parent[target] == -1)
 		return;
-	printPath(parent, parent[target]);
+	printPath(parent, parent[target], Malls);
 	printf("-> %d ", target);
 }
-
 
 void dijkstraTime(double timeGraph[V][V], int src, int target) {
 	int visited[V]; // Keep track of visited nodes
@@ -52,7 +98,7 @@ void dijkstraTime(double timeGraph[V][V], int src, int target) {
 
 	for (int i = 0; i < V; i++) {
 		visited[i] = 0;    // Mark all vertices as not visited
-		dist[i] = DBL_MAX; // Initialize distances to infinity
+		dist[i] = INT_MAX; // Initialize distances to infinity
 		parent[i] = -1;    // Initialize parents to -1 (undefined)
 	}
 
@@ -71,7 +117,7 @@ void dijkstraTime(double timeGraph[V][V], int src, int target) {
 
 		// Update dist value of the adjacent vertices
 		for (int v = 0; v < V; v++) {
-			if (!visited[v] && travellingTimeMatrix[u][v] && dist[u] != DBL_MAX &&
+			if (!visited[v] && travellingTimeMatrix[u][v] && dist[u] != INT_MAX &&
 				dist[u] + travellingTimeMatrix[u][v] < dist[v]) {
 				dist[v] = dist[u] + travellingTimeMatrix[u][v];
 				parent[v] = u;
@@ -80,12 +126,24 @@ void dijkstraTime(double timeGraph[V][V], int src, int target) {
 	}
 
 	// Print the shortest path from src to target
-	printf("\nShortest Traveling Time from %d to %d: %.2f hours\n", src, target, dist[target]);
+
+	printf("Shortest Travelling Time from %d to %d: ", src, target);
+	// Convert total time in seconds to hours, minutes, and seconds
+	int hours = (int)dist[target];
+	double remainder = dist[target] - hours;
+	int minutes = (int)(remainder * 60);
+	remainder = remainder * 60 - minutes;
+	int seconds = (int)(remainder * 60);
+
+	printf("%02d hrs:%02d min:%02d sec\n", hours, minutes, seconds);
+
+
+
 }
 
 
 // Function to calculate and print the shortest path using Dijkstra's algorithm
-void dijkstraPath(double graph[V][V], int src, int target) {
+void dijkstraPath(double graph[V][V], int src, int target, char* Malls[]) {
 	double dist[V];
 	bool sptSet[V];
 	int parent[V];
@@ -166,93 +224,125 @@ double distanceMatrix[V][V] = {
 
 };
 
+static int pathSpeeds[V][V]; //to keep the speeds generated for a particular route
+static int pathUserCount[V][V]; //the number of users who have requested the same route
 
+
+// Function pointer type for dijkstra algorithm
+typedef void (*DijkstraFunction)(int src, int target, double distanceMatrix[V][V]);
+
+//void getShortestPath(void *pvParameters) {
+//
+//	User* user = (User*)pvParameters;
+//	int src = user->src;
+//	int target = user->destination;
+//
+//	dijkstraPath(distanceMatrix, src, target);
+//}
 int generateRandomSpeed() {
 	int const MAX_SPEED = 120;
 	int const MIN_SPEED = 30;
 	return MIN_SPEED + (rand() % (MAX_SPEED - MIN_SPEED + 1));
 }
 
-void generateUserQuery(void *pvParameters) {
+
+
+void generateUserQuery(void* pvParameters) {
 	const TickType_t xDelay250ms = pdMS_TO_TICKS(250);
+
 	int numUsers = 1;
-	static int pathSpeeds[V][V];
-	static int pathUserCount[V][V];
-	
-	
-	while (numUsers < V) {
-		//get random source and target
-		int src = rand() % V;
-		int target = rand() % V;
+
+	//User* user = (User*)pvParameters;
+
+	for (numUsers = 1; numUsers < 10; numUsers++) {
+		User user;
+		do {
+			user.src = rand() % V;
+			user.userID = numUsers;
+			user.speed = generateRandomSpeed();
+			user.destination = rand() % V;
+		} while (user.src == user.destination);
 
 
-		//make sure that src abd target are not the same
-		while (src == target) {
-			//get another target
-			target = rand() % V;
-		}
+		pathSpeeds[user.src][user.destination] = pathSpeeds[user.src][user.destination] + user.speed;
+		pathUserCount[user.src][user.destination]++;
 
-		//get speeds for each user
-		int speed = generateRandomSpeed();
+		printf("User: %d\n", user.userID);
+		printf("Source to Destination: %d -> %d\n", user.src, user.destination);
+		printf("Speed: %dkm/h\n", user.speed);
 
-		printf("User %d \n", numUsers);
-		printf("Source to destination: %d -> %d\n", src, target);
-		printf("Speed: %dkm/h\n", speed);
-		
-		
-
-		pathSpeeds[src][target] = pathSpeeds[src][target] + speed;
-		pathUserCount[src][target]++;
-		printf("Total Speed for users on path %d -> %d: %dkm/h\n", src, target, pathSpeeds[src][target]);
-		printf("User count on path %d -> %d: %d\n", src, target, pathUserCount[src][target]);
-
-		
-		dijkstraPath(distanceMatrix, src, target);
-
-		//get travelling time for specific path
-
-		if (pathUserCount[src][target] > 0) {
-			double averageSpeed = (double)pathSpeeds[src][target] / pathUserCount[src][target];
-			double distance = distanceMatrix[src][target];
-
-			//update the travelling time matrix
-			travellingTimeMatrix[src][target] = distance / averageSpeed;
-		}
-
-		dijkstraTime(travellingTimeMatrix, src, target);
-
-		printf("\n");
+		xQueueSend(userQueue, &user, portMAX_DELAY);
 
 
-		numUsers++;
 		vTaskDelay(xDelay250ms);
+
+
+
 	}
 
-	//print average speed and travelling time
-	for (int i = 0; i < V; ++i) {
-		for (int j = 0; j < V; ++j) {
-			if (pathUserCount[i][j] > 0) {
-				double averageSpeed = (double)pathSpeeds[i][j] / pathUserCount[i][j];
-				double travelTime = (distanceMatrix[i][j] / averageSpeed)*60;
-				printf("Average Speed for path %d -> %d: %.2f km/h\n", i, j, averageSpeed);
-				printf("Traveling Time for path %d -> %d: %.2f hours\n", i, j, travelTime);
 
-
-			}
-		}
-	}
-	
 
 }
 
-int main() {
-	
+void processQuery(void* pvParameters) {
+	User user;
+	Response resp;
 
+	while (1) {
+
+		if (xQueueReceive(userQueue, &user, portMAX_DELAY) == pdPASS) {
+			TickType_t startTime = xTaskGetTickCount();
+			dijkstraPath(distanceMatrix, user.src, user.destination, Malls);
+
+			//get average speed
+			if (pathUserCount[user.src][user.destination] > 0) {//if a path was taken by atleast a single user
+				double averageSpeed = (double)pathSpeeds[user.src][user.destination] / pathUserCount[user.src][user.destination]; //get average speed
+				double distance = distanceMatrix[user.src][user.destination];
+
+				//update travelling time matrix
+				travellingTimeMatrix[user.src][user.destination] = distance / averageSpeed;
+			}
+			//get shortest travellling time
+			dijkstraTime(travellingTimeMatrix, user.src, user.destination);
+			resp.src = user.src;
+			resp.destination = user.destination;
+			resp.elapsedTime = xTaskGetTickCount() - startTime;
+
+			xQueueSend(responseQueue, &resp, portMAX_DELAY);
+
+		}
+
+	}
+}
+
+void response(void* pvParameters) {
+	Response resp;
+
+	while (1) {
+		if (xQueueReceive(responseQueue, &resp, portMAX_DELAY) == pdPASS) {
+			printf("Elapsed Time: %.3fm/s\n", pdMS_TO_TICKS(resp.elapsedTime));
+
+
+		}
+
+
+	}
+}
+
+
+
+int main() {
+
+	/*User user;*/
+	userQueue = xQueueCreate(10, sizeof(User));
+	responseQueue = xQueueCreate(10, sizeof(Response));
 
 	xTaskCreate(generateRandomSpeed, "RandSpeed", 1024, NULL, 1, NULL);
 	xTaskCreate(generateUserQuery, "UserQ", 1024, NULL, 1, NULL);
-
+	xTaskCreate(processQuery, "ProcessQuery", 1024, NULL, 1, NULL);
+	xTaskCreate(response, "Response", 1024, NULL, 1, NULL);
 	vTaskStartScheduler();
+
 
 
 	return 0;
@@ -260,7 +350,13 @@ int main() {
 }
 /*-----------------------------------------------------------*/
 
- 
+
+
+
+
+
+
+
 
 
 
