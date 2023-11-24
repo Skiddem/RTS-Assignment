@@ -282,13 +282,13 @@ int generateRandomSpeed() {
 }
 
 void generateUserQuery(void* pvParameters) {
-	const TickType_t xDelay250ms = pdMS_TO_TICKS(250);
+	const TickType_t xDelay250ms = pdMS_TO_TICKS(0);
 
 	int numUsers = 1;
 
 	//User* user = (User*)pvParameters;
 
-	for (numUsers = 1; numUsers < 10; numUsers++) {
+	for (numUsers = 1; numUsers <= totalQueries; numUsers++) {
 		User user;
 		do {
 			user.src = rand() % V;
@@ -334,6 +334,8 @@ void processQuery(void* pvParameters) {
 			//get average speed
 			if (pathUserCount[user.src][user.destination] > 0) {//if a path was taken by atleast a single user
 				double averageSpeed = (double)pathSpeeds[user.src][user.destination] / pathUserCount[user.src][user.destination]; //get average speed
+				
+				//distance equals to shortest distance
 				double distance = distanceMatrix[user.src][user.destination];
 
 				//update travelling time matrix
@@ -341,11 +343,11 @@ void processQuery(void* pvParameters) {
 			}
 			//get shortest travellling time
 			dijkstraTime(travellingTimeMatrix, user.src, user.destination);
-			resp.src = user.src;
+			/*resp.src = user.src;
 			resp.destination = user.destination;
 			resp.elapsedTime = xTaskGetTickCount() - startTime;
 
-			xQueueSend(responseQueue, &resp, portMAX_DELAY);
+			xQueueSend(responseQueue, &resp, portMAX_DELAY);*/
 
 		}
 
