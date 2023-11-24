@@ -250,6 +250,7 @@ int generateRandomSpeed() {
 }
 
 void generateUserQuery(void* pvParameters) {
+	srand(time(0));
 	const TickType_t xDelay250ms = pdMS_TO_TICKS(0);
 
 	int numUsers = 1;
