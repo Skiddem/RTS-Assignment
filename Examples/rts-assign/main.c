@@ -17,7 +17,6 @@ QueueHandle_t userQueue;
 QueueHandle_t responseQueue;
 
 
-
 typedef struct {
 	int userID;
 	int speed;
@@ -250,17 +249,20 @@ int generateRandomSpeed() {
 	return MIN_SPEED + (rand() % (MAX_SPEED - MIN_SPEED + 1));
 }
 
+
 void generateUserQuery(void* pvParameters) {
-	/*TickType_t startTime;*/ //program start time
 	srand(time(0));
 	const TickType_t xDelay250ms = pdMS_TO_TICKS(0);
 
+	TickType_t startTime, endTime;
+	TickType_t totalTime = 0;
+	TickType_t minTime = UINT32_MAX;  // Set initial minTime to maximum possible value
+	TickType_t maxTime = 0;          // Set initial maxTime to 0
+
 	int numUsers = 1;
+	startTime = xTaskGetTickCount();
 
-	//User* user = (User*)pvParameters;
-
-	for (numUsers = 1; numUsers <= 10; numUsers++) {
-		//startTime = xTaskGetTickCount();
+	for (numUsers = 1; numUsers <= 20000; numUsers++) {
 		User user;
 		do {
 			user.src = rand() % V;
@@ -269,38 +271,52 @@ void generateUserQuery(void* pvParameters) {
 			user.destination = rand() % V;
 		} while (user.src == user.destination);
 
-		const char*srcMallName = Malls[user.src];
-		const char*destMallName = Malls[user.destination];
+		const char* srcMallName = Malls[user.src];
+		const char* destMallName = Malls[user.destination];
 
 		pathSpeeds[user.src][user.destination] = pathSpeeds[user.src][user.destination] + user.speed;
 		pathUserCount[user.src][user.destination]++;
 
 		printf("\nUser: %d\n", user.userID);
 		printf("Source to Destination: %s -> %s\n", srcMallName, destMallName);
-		/*printf("Source to Destination: %d -> %d\n", user.src, user.destination);*/
 		printf("Speed: %dkm/h\n", user.speed);
 
-		/*xTaskNotifyGive(processQuery);*/
 		xQueueSend(userQueue, &user, portMAX_DELAY);
-		  
+		endTime = xTaskGetTickCount();
+		TickType_t elapsedTime = endTime - startTime;
+		uint32_t elapsedTimeMs = (elapsedTime * portTICK_PERIOD_MS);
+
+		totalTime += elapsedTimeMs;
+		if (elapsedTimeMs < minTime) {
+			minTime = elapsedTimeMs;
+		}
+		if (elapsedTimeMs > maxTime) {
+			maxTime = elapsedTimeMs;
+		}
+
+		printf("Elapsed Time: %u ms\n", (unsigned int)elapsedTimeMs);
 
 		vTaskDelay(xDelay250ms);
-
-
-
 	}
 
+	// Calculate and print average time
+	TickType_t averageTime = totalTime / (numUsers - 1);
+
+	printf("\n\nSummary");
+	printf("\nMin Time: %u ms\n", (unsigned int)minTime);
+	printf("Max Time: %u ms\n", (unsigned int)maxTime);
+	printf("Average Time: %u ms\n", (unsigned int)averageTime);
 }
+
 
 void processQuery(void* pvParameters) {
 	User user;
 	Response resp;
-	/*TickType_t endTime;*/
 
-	for (;;) {
+	while (1) {
 
 		if (xQueueReceive(userQueue, &user, portMAX_DELAY) == pdPASS) {
-		/*	TickType_t startTime = xTaskGetTickCount();*/
+			TickType_t startTime = xTaskGetTickCount();
 			dijkstraPath(distanceMatrix, user.src, user.destination, Malls);
 
 			//get average speed
@@ -315,8 +331,6 @@ void processQuery(void* pvParameters) {
 			}
 			//get shortest travellling time
 			dijkstraTime(travellingTimeMatrix, user.src, user.destination);
-
-			
 			/*resp.src = user.src;
 			resp.destination = user.destination;
 			resp.elapsedTime = xTaskGetTickCount() - startTime;
@@ -324,46 +338,23 @@ void processQuery(void* pvParameters) {
 			xQueueSend(responseQueue, &resp, portMAX_DELAY);*/
 
 		}
-		
-		
-
 
 	}
 }
 
-//void response(void* pvParameters) {
-//	//R/*esponse resp;*/
-//	TickType_t startTime;
-//	TickType_t endTime;
-//
-//	for (;;) {
-//		// Record the start time
-//		startTime = xTaskGetTickCount();
-//
-//		// Wait for a while
-//		vTaskDelay(pdMS_TO_TICKS(2000));
-//
-//		// Record the end time
-//		endTime = xTaskGetTickCount();
-//
-//		// Print the time taken
-//		printf("Time taken: %u ms\n", (endTime - startTime) * portTICK_PERIOD_MS);
-//	}
-//
-//
-//
-//	/*while (1) {
-//		if (xQueueReceive(responseQueue, &resp, portMAX_DELAY) == pdPASS) {
-//			printf("Elapsed Time: %.3fm/s\n", pdMS_TO_TICKS(resp.elapsedTime));
-//
-//
-//		}
-//
-//
-//	}*/
-//
-//
-//}
+/*void response(void* pvParameters) {
+	Response resp;
+
+	while (1) {
+		if (xQueueReceive(responseQueue, &resp, portMAX_DELAY) == pdPASS) {
+			printf("Elapsed Time: %.3fm/s\n", pdMS_TO_TICKS(resp.elapsedTime));
+
+
+		}
+
+
+	}
+}*/
 
 
 int main() {
