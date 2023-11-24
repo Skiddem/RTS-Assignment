@@ -254,13 +254,12 @@ void generateUserQuery(void* pvParameters) {
 	srand(time(0));
 	const TickType_t xDelay250ms = pdMS_TO_TICKS(0);
 
-	TickType_t startTime, endTime;
-	TickType_t totalTime = 0;
-	TickType_t minTime = UINT32_MAX;  // Set initial minTime to maximum possible value
-	TickType_t maxTime = 0;          // Set initial maxTime to 0
+	unsigned long globalMinElapsedTime = ULONG_MAX;  // Initialize globalMinElapsedTime to maximum possible value
+	unsigned long globalMaxElapsedTime = 0;          // Initialize globalMaxElapsedTime to 0
+	unsigned long totalElapsedTime = 0;
+	unsigned long numQueries = 0;
 
 	int numUsers = 1;
-	startTime = xTaskGetTickCount();
 
 	for (numUsers = 1; numUsers <= 20000; numUsers++) {
 		User user;
@@ -277,37 +276,42 @@ void generateUserQuery(void* pvParameters) {
 		pathSpeeds[user.src][user.destination] = pathSpeeds[user.src][user.destination] + user.speed;
 		pathUserCount[user.src][user.destination]++;
 
+		TickType_t startTime = xTaskGetTickCount();
 		printf("\nUser: %d\n", user.userID);
 		printf("Source to Destination: %s -> %s\n", srcMallName, destMallName);
 		printf("Speed: %dkm/h\n", user.speed);
 
 		xQueueSend(userQueue, &user, portMAX_DELAY);
-		endTime = xTaskGetTickCount();
+		TickType_t endTime = xTaskGetTickCount();
 		TickType_t elapsedTime = endTime - startTime;
-		uint32_t elapsedTimeMs = (elapsedTime * portTICK_PERIOD_MS);
 
-		totalTime += elapsedTimeMs;
-		if (elapsedTimeMs < minTime) {
-			minTime = elapsedTimeMs;
+		// Update globalMinElapsedTime and globalMaxElapsedTime
+		if (elapsedTime < globalMinElapsedTime) {
+			globalMinElapsedTime = elapsedTime;
 		}
-		if (elapsedTimeMs > maxTime) {
-			maxTime = elapsedTimeMs;
+		if (elapsedTime > globalMaxElapsedTime) {
+			globalMaxElapsedTime = elapsedTime;
 		}
 
-		printf("Elapsed Time: %u ms\n", (unsigned int)elapsedTimeMs);
+		// Accumulate total elapsed time and increment the number of queries
+		totalElapsedTime += elapsedTime;
+		numQueries++;
+
+		printf("Elapsed Time: %lu ms\n", elapsedTime);
 
 		vTaskDelay(xDelay250ms);
 	}
 
-	// Calculate and print average time
-	TickType_t averageTime = totalTime / (numUsers - 1);
+	printf("\n\n*******************************************************************************");
+	printf("\n\nMinimum Elapsed Time: %lu ms\n", globalMinElapsedTime);
+	printf("Maximum Elapsed Time: %lu ms\n", globalMaxElapsedTime);
+	printf("Total Elapsed Time: %lu ms\n", totalElapsedTime);
 
-	printf("\n\nSummary");
-	printf("\nMin Time: %u ms\n", (unsigned int)minTime);
-	printf("Max Time: %u ms\n", (unsigned int)maxTime);
-	printf("Average Time: %u ms\n", (unsigned int)averageTime);
+	if (numQueries > 0) {
+		double averageElapsedTime = (double)totalElapsedTime / numQueries;
+		printf("Average Elapsed Time: %.2f ms\n", averageElapsedTime);
+	}
 }
-
 
 void processQuery(void* pvParameters) {
 	User user;
