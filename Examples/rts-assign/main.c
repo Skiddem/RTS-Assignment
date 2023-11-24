@@ -12,6 +12,7 @@
 #define V 40 //number of malls(nodes)
 #define totalQueries 10000
 double travellingTimeMatrix[V][V];
+double shortestDistanceMatrix[V][V];
 QueueHandle_t userQueue;
 QueueHandle_t responseQueue;
 
@@ -190,40 +191,6 @@ void dijkstraTime(double timeGraph[V][V], int src, int target) {
 
 
 // Function to calculate and print the shortest path using Dijkstra's algorithm
-//void dijkstraPath(double graph[V][V], int src, int target, char* Malls[]) {
-//	double dist[V];
-//	bool sptSet[V];
-//	int parent[V];
-//
-//	for (int i = 0; i < V; i++) {
-//		dist[i] = INT_MAX;
-//		sptSet[i] = false;
-//	}
-//
-//	dist[src] = 0;
-//	parent[src] = -1;
-//
-//	for (int count = 0; count < V - 1; count++) {
-//		int u = minDistance(dist, sptSet);
-//		sptSet[u] = true;
-//
-//		for (int v = 0; v < V; v++) {
-//			if (!sptSet[v] && graph[u][v] && dist[u] != INT_MAX && dist[u] + graph[u][v] < dist[v]) {
-//				dist[v] = dist[u] + graph[u][v];
-//				parent[v] = u;
-//			}
-//		}
-//	}
-//
-//	if (dist[target] == DBL_MAX) {
-//		printf("No path from %s to %s\n", Malls[src], Malls[target]);
-//	}
-//	else {
-//		printf("Shortest path from %s to %s: ", Malls[src], Malls[target]);
-//		printPath(parent, target);
-//		printf("\nShortest distance: %.2fKm\n", dist[target]);
-//	}
-//}
 void dijkstraPath(double graph[V][V], int src, int target, char* Malls[]) {
 	double dist[V];
 	bool sptSet[V];
@@ -256,6 +223,7 @@ void dijkstraPath(double graph[V][V], int src, int target, char* Malls[]) {
 		printf("Shortest path from %s to %s: %s ", Malls[src], Malls[target], Malls[src]);
 		printPath(parent, target);
 		printf("\nShortest distance: %.2fKm\n", dist[target]);
+		shortestDistanceMatrix[src][target] = dist[target];
 	}
 }
 
@@ -288,7 +256,7 @@ void generateUserQuery(void* pvParameters) {
 
 	//User* user = (User*)pvParameters;
 
-	for (numUsers = 1; numUsers <= totalQueries; numUsers++) {
+	for (numUsers = 1; numUsers <= 10; numUsers++) {
 		User user;
 		do {
 			user.src = rand() % V;
@@ -336,7 +304,7 @@ void processQuery(void* pvParameters) {
 				double averageSpeed = (double)pathSpeeds[user.src][user.destination] / pathUserCount[user.src][user.destination]; //get average speed
 				
 				//distance equals to shortest distance
-				double distance = distanceMatrix[user.src][user.destination];
+				double distance = shortestDistanceMatrix[user.src][user.destination];
 
 				//update travelling time matrix
 				travellingTimeMatrix[user.src][user.destination] = distance / averageSpeed;
