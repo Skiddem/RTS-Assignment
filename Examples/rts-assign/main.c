@@ -22,7 +22,6 @@ typedef struct {
 	int speed;
 	int src;
 	int destination;
-
 }User;
 
 typedef struct {
