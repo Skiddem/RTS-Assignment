@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include "queue.h"
 #include "supporting_functions.h"
+#include "semphr.h"
 
 
 #define V 40 //number of malls(nodes)
@@ -15,30 +16,35 @@ double travellingTimeMatrix[V][V];
 double shortestDistanceMatrix[V][V];
 QueueHandle_t userQueue;
 QueueHandle_t responseQueue;
+SemaphoreHandle_t queueSemaphore;
 
+typedef struct {
+
+	int noQueries;
+}Queries;
 
 typedef struct {
 	int userID;
 	int speed;
 	int src;
 	int destination;
+	TickType_t elapsedTime,startTime;
 
 }User;
 
 typedef struct {
-	int src;
-	int destination;
-	int shortest_travelling_time;
-	int shortest_distance;
-	TickType_t elapsedTime;
+	unsigned long minElapsedTime;
+	unsigned long maxElapsedTime;
+	unsigned long totalElapsedTime;
+	double avgElapsedTime;
 }Response;
 
-//shopping mall
+//shopping malls
 char* Malls[V] = {
-	"BTS", "BB_Plaza", "F88", "ImbiPlaza", "Lot10", "MSPL", "PlazaLowYat", "PavKL", "SHGallery", "SungeiWangPlaza",
-	"AvenueK", "Intermark", "Suria", "LINC", "Weld", "GESC", "PertamaCmplx", "Quill", "Sogo", "SunwayPutra", "CapSquare",
-	"PuduPlza", "KenaangaWC", "PlazaSP", "BSC", "Bangsar Village", "PavBJ", "NUSent", "Shamelin", "ATMSC", "IKEAChe",
-	"MyTOWN", "SunwayVM", "VivaH", "DCM", "GD", "HSC", "PSG", "PlazaOUG", "PearlPnt"
+	"Berjaya Times Square", "Bukit Bintang Plaza", "Fahrenheit 88", "Imbi Plaza", "Lot 10", "Mitsui Shopping Park Lalaport Kl", "Plaza Low Yat", "Pavilion KL", "Starhill Gallery", "Sungei Wang Plaza",
+	"Avenue K Shopping Mall", "Intermark Mall", "Suria KLCC", "LINC KL", "The Weld", "Great Eastern Shopping Centre", "Pertama Complex", "Quill City Mall", "Sogo KL", "Sunway Putra Mall", "CapSquare Centre",
+	"Pudu Plaza", "Kenanga Wholesale City", "Plaza Salak Park", "Bangsar Shopping Centre", "Bangsar Village I and II", "Pavivilion BJ", "NU Sentral", "Shamelin Shopping Centre", "ATMSC", "IKEA Cheras",
+	"MyTown Shopping Centre", "Sunway Velocity Mall", "Viva Home", "Damansara City Mall", "Glo Damansara", "Hartamas Shopping Centre", "Publika Shopping Gallery", "Plaza OUG", "Pearl Point Shopping Centre"
 };
 
 double distanceMatrix[V][V] = {
@@ -103,34 +109,6 @@ int minDistance(double dist[], bool sptSet[]) {
 }
 
 
-//minDistance for timeMatrix
-int minDistanceTime(int dist[], bool sptSet[]) {
-	int min = INT_MAX;
-	int min_index;
-
-	for (int v = 0; v < V; v++) {
-		if (!sptSet[v] && dist[v] <= min) {
-			min = dist[v];
-			min_index = v;
-		}
-	}
-
-	return min_index;
-}
-
-//function to print shortest travelling time time
-void printTime(int dist[], int target) {
-	int hours, minutes, seconds;
-	int shortestTime = dist[target]; // Assuming the destination is the last vertex
-
-	hours = shortestTime / 3600;
-	minutes = (shortestTime % 3600) / 60;
-	seconds = shortestTime % 60;
-
-	printf("%02d:%02d:%02d\n\n", hours, minutes, seconds);
-}
-
-
 // Function to print the path from source to target
 void printPath(int parent[], int target) {
 	if (parent[target] == -1)
@@ -185,8 +163,6 @@ void dijkstraTime(double timeGraph[V][V], int src, int target) {
 
 	printf("%02d hrs:%02d min:%02d sec\n", hours, minutes, seconds);
 
-
-
 }
 
 
@@ -232,17 +208,7 @@ static int pathSpeeds[V][V]; //to keep the speeds generated for a particular rou
 static int pathUserCount[V][V]; //the number of users who have requested the same route
 
 
-// Function pointer type for dijkstra algorithm
-typedef void (*DijkstraFunction)(int src, int target, double distanceMatrix[V][V]);
 
-//void getShortestPath(void *pvParameters) {
-//
-//	User* user = (User*)pvParameters;
-//	int src = user->src;
-//	int target = user->destination;
-//
-//	dijkstraPath(distanceMatrix, src, target);
-//}
 int generateRandomSpeed() {
 	int const MAX_SPEED = 120;
 	int const MIN_SPEED = 30;
@@ -251,21 +217,19 @@ int generateRandomSpeed() {
 
 
 void generateUserQuery(void* pvParameters) {
+	Queries* queries = (Queries*)pvParameters;
 	srand(time(0));
 	const TickType_t xDelay250ms = pdMS_TO_TICKS(0);
-
-	unsigned long globalMinElapsedTime = ULONG_MAX;  // Initialize globalMinElapsedTime to maximum possible value
-	unsigned long globalMaxElapsedTime = 0;          // Initialize globalMaxElapsedTime to 0
-	unsigned long totalElapsedTime = 0;
-	unsigned long numQueries = 0;
+	User user;
 
 	int numUsers = 1;
 
-	for (numUsers = 1; numUsers <= 20000; numUsers++) {
-		User user;
+	for (numUsers = 1; numUsers <= queries->noQueries; numUsers++) {
+		user.startTime = xTaskGetTickCount();
 		do {
 			user.src = rand() % V;
 			user.userID = numUsers;
+
 			user.speed = generateRandomSpeed();
 			user.destination = rand() % V;
 		} while (user.src == user.destination);
@@ -275,55 +239,34 @@ void generateUserQuery(void* pvParameters) {
 
 		pathSpeeds[user.src][user.destination] = pathSpeeds[user.src][user.destination] + user.speed;
 		pathUserCount[user.src][user.destination]++;
-
-		TickType_t startTime = xTaskGetTickCount();
-		printf("\nUser: %d\n", user.userID);
+		
+		printf("\nUser Query: %d\n", user.userID);
 		printf("Source to Destination: %s -> %s\n", srcMallName, destMallName);
 		printf("Speed: %dkm/h\n", user.speed);
 
-		xQueueSend(userQueue, &user, portMAX_DELAY);
-		TickType_t endTime = xTaskGetTickCount();
-		TickType_t elapsedTime = endTime - startTime;
-
-		// Update globalMinElapsedTime and globalMaxElapsedTime
-		if (elapsedTime < globalMinElapsedTime) {
-			globalMinElapsedTime = elapsedTime;
-		}
-		if (elapsedTime > globalMaxElapsedTime) {
-			globalMaxElapsedTime = elapsedTime;
-		}
-
-		// Accumulate total elapsed time and increment the number of queries
-		totalElapsedTime += elapsedTime;
-		numQueries++;
-
-		printf("Elapsed Time: %lu ms\n", elapsedTime);
+		
+		xQueueSend(userQueue, &user, portMAX_DELAY);//send user to processQuery
 
 		vTaskDelay(xDelay250ms);
 	}
+	xSemaphoreGive(queueSemaphore);
 
-	printf("\n\n*******************************************************************************");
-	printf("\n\nMinimum Elapsed Time: %lu ms\n", globalMinElapsedTime);
-	printf("Maximum Elapsed Time: %lu ms\n", globalMaxElapsedTime);
-	printf("Total Elapsed Time: %lu ms\n", totalElapsedTime);
-
-	if (numQueries > 0) {
-		double averageElapsedTime = (double)totalElapsedTime / numQueries;
-		printf("Average Elapsed Time: %.2f ms\n", averageElapsedTime);
-	}
 }
 
 void processQuery(void* pvParameters) {
 	User user;
 	Response resp;
+	unsigned long globalMinElapsedTime = ULONG_MAX;  // Initialize globalMinElapsedTime to maximum possible value
+	unsigned long globalMaxElapsedTime = 0;          // Initialize globalMaxElapsedTime to 0
+	unsigned long totalElapsedTime = 0;
+	unsigned long numQueries = 0;
 
 	while (1) {
 
 		if (xQueueReceive(userQueue, &user, portMAX_DELAY) == pdPASS) {
-			TickType_t startTime = xTaskGetTickCount();
 			dijkstraPath(distanceMatrix, user.src, user.destination, Malls);
 
-			//get average speed
+			
 			if (pathUserCount[user.src][user.destination] > 0) {//if a path was taken by atleast a single user
 				double averageSpeed = (double)pathSpeeds[user.src][user.destination] / pathUserCount[user.src][user.destination]; //get average speed
 				
@@ -335,50 +278,101 @@ void processQuery(void* pvParameters) {
 			}
 			//get shortest travellling time
 			dijkstraTime(travellingTimeMatrix, user.src, user.destination);
-			/*resp.src = user.src;
-			resp.destination = user.destination;
-			resp.elapsedTime = xTaskGetTickCount() - startTime;
 
-			xQueueSend(responseQueue, &resp, portMAX_DELAY);*/
+			TickType_t endTime = xTaskGetTickCount();
+
+			user.elapsedTime = endTime - user.startTime;
+
+			// Update globalMinElapsedTime and globalMaxElapsedTime
+			if (user.elapsedTime < globalMinElapsedTime) {
+				globalMinElapsedTime = user.elapsedTime;
+			}
+			if (user.elapsedTime > globalMaxElapsedTime) {
+				globalMaxElapsedTime = user.elapsedTime;
+			}
+
+			// Accumulate total elapsed time and increment the number of queries
+			totalElapsedTime += user.elapsedTime;
+			numQueries++;
+
+			//display elapsed time
+			printf("Elapsed Time: %lu milliseconds\n", user.elapsedTime);
+			printf("-----------------------------------------------------------------------------------------\n");
+			printf("-----------------------------------------------------------------------------------------\n");
+
+			
+			
 
 		}
+		if (numQueries > 0) {
+			double averageElapsedTime = (double)totalElapsedTime / numQueries;
+			resp.avgElapsedTime = averageElapsedTime;
+		}
+
+		
+		resp.maxElapsedTime = globalMaxElapsedTime;
+		resp.minElapsedTime = globalMinElapsedTime;
+		resp.totalElapsedTime = totalElapsedTime;
+
+
+		//send to response task
+		xQueueSend(responseQueue, &resp, portMAX_DELAY);
+		
 
 	}
 }
 
-/*void response(void* pvParameters) {
+//Task to display the min,max,total and average elapsed time
+void response(void* pvParameters) {
 	Response resp;
 
 	while (1) {
 		if (xQueueReceive(responseQueue, &resp, portMAX_DELAY) == pdPASS) {
-			printf("Elapsed Time: %.3fm/s\n", pdMS_TO_TICKS(resp.elapsedTime));
+			if (xSemaphoreTake(queueSemaphore, portMAX_DELAY == pdPASS)) {
+				printf("\n\n**************************************************************************\n");
+				printf("\t\tRUNNING TIME\n");
+				printf("\n\tMinimum Elapsed Time: %lu millisecond\n", resp.minElapsedTime);
+				printf("\tMaximum Elapsed Time: %lu milliseconds\n", resp.maxElapsedTime);
+				printf("\tTotal Elapsed Time: %lu milliseconds\n", resp.totalElapsedTime);
+				printf("\tAverage Elapsed Time: %.3f milliseconds\n", resp.avgElapsedTime);
+				printf("***************************************************************************");
 
+			}
+			
 
 		}
 
 
 	}
-}*/
+}
 
 
 int main() {
-
-	/*User user;*/
+	
 	userQueue = xQueueCreate(10, sizeof(User));
 	responseQueue = xQueueCreate(10, sizeof(Response));
+	queueSemaphore = xSemaphoreCreateBinary();
+	Queries queries;
 
+	//user menu
+	int numQueries;
+	printf("Enter how many queries you would like to generate: ");
+	scanf("%d", &numQueries);
+	queries.noQueries = numQueries;
+
+
+	//tasks
 	xTaskCreate(generateRandomSpeed, "RandSpeed", 1024, NULL, 1, NULL);
-	xTaskCreate(generateUserQuery, "UserQ", 1024, NULL, 1, NULL);
+	xTaskCreate(generateUserQuery, "UserQ", 1024, &queries, 1, NULL);
 	xTaskCreate(processQuery, "ProcessQuery", 1024, NULL, 1, NULL);
+	xTaskCreate(response, "Response", 1024, NULL, 1, NULL);
 	
 	vTaskStartScheduler();
-
 
 
 	return 0;
 
 }
-/*-----------------------------------------------------------*/
 
 
 
