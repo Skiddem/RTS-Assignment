@@ -113,7 +113,8 @@ void printPath(int parent[], int target) {
 	if (parent[target] == -1)
 		return;
 	printPath(parent, parent[target]);
-	printf("-> %s ", Malls[target]);
+	int targetNum = target + 1;
+	printf("-> %s (%d) ", Malls[target], targetNum);
 }
 
 void dijkstraTime(double timeGraph[V][V], int src, int target) {
@@ -151,8 +152,9 @@ void dijkstraTime(double timeGraph[V][V], int src, int target) {
 	}
 
 	// Print the shortest path from src to target
-
-	printf("Shortest Travelling Time from %s to %s: ", Malls[src], Malls[target]);
+	int srcNum = src + 1;
+	int targetNum = target + 1;
+	printf("Shortest Travelling Time from %s (%d) to %s (%d): ", Malls[src], srcNum, Malls[target], targetNum);
 	// Convert total time in seconds to hours, minutes, and seconds
 	int hours = (int)dist[target];
 	double remainder = dist[target] - hours;
@@ -178,6 +180,8 @@ void dijkstraPath(double graph[V][V], int src, int target, char* Malls[]) {
 
 	dist[src] = 0;
 	parent[src] = -1;
+	int srcNum = src + 1;
+	int targetNum = target + 1;
 
 	for (int count = 0; count < V - 1; count++) {
 		int u = minDistance(dist, sptSet);
@@ -195,7 +199,7 @@ void dijkstraPath(double graph[V][V], int src, int target, char* Malls[]) {
 		printf("No path from %s to %s\n", Malls[src], Malls[target]);
 	}
 	else {
-		printf("Shortest path from %s to %s: %s ", Malls[src], Malls[target], Malls[src]);
+		printf("Shortest path from %s (%d) to %s (%d): %s (%d)", Malls[src], srcNum, Malls[target], targetNum, Malls[src], srcNum);
 		printPath(parent, target);
 		printf("\nShortest distance: %.2fKm\n", dist[target]);
 		shortestDistanceMatrix[src][target] = dist[target];
@@ -235,12 +239,14 @@ void generateUserQuery(void* pvParameters) {
 
 		const char* srcMallName = Malls[user.src];
 		const char* destMallName = Malls[user.destination];
+		int srcNum = user.src + 1;
+		int destNum = user.destination + 1;
 
 		pathSpeeds[user.src][user.destination] = pathSpeeds[user.src][user.destination] + user.speed;
 		pathUserCount[user.src][user.destination]++;
 		
 		printf("\nUser Query: %d\n", user.userID);
-		printf("Source to Destination: %s -> %s\n", srcMallName, destMallName);
+		printf("Source to Destination: %s (%d) -> %s (%d)\n", srcMallName, srcNum, destMallName, destNum);
 		printf("Speed: %dkm/h\n", user.speed);
 
 		
@@ -328,13 +334,14 @@ void response(void* pvParameters) {
 	while (1) {
 		if (xQueueReceive(responseQueue, &resp, portMAX_DELAY) == pdPASS) {
 			if (xSemaphoreTake(queueSemaphore, portMAX_DELAY == pdPASS)) {
-				printf("\n\n**************************************************************************\n");
+				printf("\n\n***************************************************************************\n");
 				printf("\t\tRUNNING TIME\n");
-				printf("\n\tMinimum Elapsed Time: %lu millisecond\n", resp.minElapsedTime);
-				printf("\tMaximum Elapsed Time: %lu milliseconds\n", resp.maxElapsedTime);
-				printf("\tTotal Elapsed Time: %lu milliseconds\n", resp.totalElapsedTime);
-				printf("\tAverage Elapsed Time: %.3f milliseconds\n", resp.avgElapsedTime);
-				printf("***************************************************************************");
+				printf("***************************************************************************\n");
+				printf("\t%-25s: %lu milliseconds\n", "Minimum Elapsed Time", resp.minElapsedTime);
+				printf("\t%-25s: %lu milliseconds\n", "Maximum Elapsed Time", resp.maxElapsedTime);
+				printf("\t%-25s: %lu milliseconds\n", "Total Elapsed Time", resp.totalElapsedTime);
+				printf("\t%-25s: %.3f milliseconds\n", "Average Elapsed Time", resp.avgElapsedTime);
+				printf("***************************************************************************\n");
 
 			}
 			
