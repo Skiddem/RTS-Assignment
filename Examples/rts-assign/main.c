@@ -28,7 +28,7 @@ typedef struct {
 	int speed;
 	int src;
 	int destination;
-
+	TickType_t elapsedTime, startTime;
 }User;
 
 typedef struct {
