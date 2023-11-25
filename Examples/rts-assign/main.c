@@ -9,7 +9,7 @@
 #include "supporting_functions.h"
 #include "semphr.h"
 
-
+#define _CRT_SECURE_NO_WARNINGS
 #define V 40 //number of malls(nodes)
 #define totalQueries 10000
 double travellingTimeMatrix[V][V];
