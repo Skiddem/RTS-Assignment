@@ -42,7 +42,7 @@ typedef struct {
 char* Malls[V] = {
 	"Berjaya Times Square", "Bukit Bintang Plaza", "Fahrenheit 88", "Imbi Plaza", "Lot 10", "Mitsui Shopping Park Lalaport Kl", "Plaza Low Yat", "Pavilion KL", "Starhill Gallery", "Sungei Wang Plaza",
 	"Avenue K Shopping Mall", "Intermark Mall", "Suria KLCC", "LINC KL", "The Weld", "Great Eastern Shopping Centre", "Pertama Complex", "Quill City Mall", "Sogo KL", "Sunway Putra Mall", "CapSquare Centre",
-	"Pudu Plaza", "Kenanga Wholesale City", "Plaza Salak Park", "Bangsar Shopping Centre", "Bangsar Village I and II", "Pavivilion BJ", "NU Sentral", "Shamelin Shopping Centre", "ATMSC", "IKEA Cheras",
+	"Pudu Plaza", "Kenanga Wholesale City", "Plaza Salak Park", "Bangsar Shopping Centre", "Bangsar Village I and II", "Pavillion BJ", "NU Sentral", "Shamelin Shopping Centre", "ATMSC", "IKEA Cheras",
 	"MyTown Shopping Centre", "Sunway Velocity Mall", "Viva Home", "Damansara City Mall", "Glo Damansara", "Hartamas Shopping Centre", "Publika Shopping Gallery", "Plaza OUG", "Pearl Point Shopping Centre"
 };
 
@@ -339,7 +339,7 @@ void response(void* pvParameters) {
 				printf("***************************************************************************\n");
 				printf("\t%-25s: %lu milliseconds\n", "Minimum Elapsed Time", resp.minElapsedTime);
 				printf("\t%-25s: %lu milliseconds\n", "Maximum Elapsed Time", resp.maxElapsedTime);
-				printf("\t%-25s: %lu milliseconds\n", "Total Elapsed Time", resp.totalElapsedTime);
+				/*printf("\t%-25s: %lu milliseconds\n", "Total Elapsed Time", resp.totalElapsedTime);*/
 				printf("\t%-25s: %.3f milliseconds\n", "Average Elapsed Time", resp.avgElapsedTime);
 				printf("***************************************************************************\n");
 
